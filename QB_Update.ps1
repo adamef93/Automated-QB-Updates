@@ -13,10 +13,12 @@ if (($CurrentUser.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrato
 }  
 write-host "in admin mode.."
 
-# Disable UAC
+# Disables UAC. The patches require UAC to run and this is included in preparation for automating the install with AutoIT
 Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value "0"
 
-$destination = "C:\Admin\QB Updates\qbwebpatch.exe"
+# Change this to your preferred directory. Keep the file name + extension
+$destination = "C:\Admin\QB Updates\qbwebpatch.exe" 
+# Edit this array to download the versions you need. See README for steps
 $downloads = @(
 # Premier Accountant 2022
 "https://http-download.intuit.com/http.intuit/Downloads/2022/dmknzyq5nUS_R3/Webpatch/qbwebpatch.exe"
@@ -52,16 +54,19 @@ $downloads = @(
 "https://http-download.intuit.com/http.intuit/Downloads/2016/IFRvyzFmpQUS_R17/WebPatch/en_qbwebpatch.exe"
 )
 
-$downloads | foreach{
+$downloads | foreach {
     $args = "/silent", "/a"
     Start-BitsTransfer -Source $_ -Destination $destination 
     Unblock-File $destination
     Start-Process $destination -Wait -ArgumentList $args
-    Remove-Item -Path $destination -Force
+    # This deletes the downloaded file upon completion of the loop. The update packages are overwritten as new ones are downloaded, but they can be large and don't need to stay       after installation
+    Remove-Item -Path $destination -Force 
 }
+# This deletes the temp directory created by the patch installer, again to save space
 Remove-Item -Path C:\Windows\Temp\qbwebpatch -Recurse -Force
 
-$quickbooks = @(
+# Edit this array for the versions you have installed
+$quickbooks = @( 
 # Premier 2022
 "C:\Program Files\Intuit\QuickBooks 2022\QBWPremierAccountant.exe"
 # Premier 2021
@@ -95,13 +100,13 @@ $quickbooks = @(
 # Enterprise 16
 "C:\Program Files (x86)\Intuit\QuickBooks Enterprise Solutions 16.0\QBW32EnterpriseAccountant.exe"
 )
-
+# This loop launches each version in the array above as admin so the patches will apply
+# THIS WILL KILL ALL OPEN VERSIONS OF QUICKBOOKS SO MAKE SURE YOU ARE THE ONLY ONE USING THE SERVER
 $quickbooks | foreach {
     Start-Process $_ -Verb runas
+    # Pauses the script to give QB enough time to process the update 
     Start-Sleep -Seconds 20
-    get-process qbw32 | foreach{
-        $_.CloseMainWindow() | Out-Null
-    } | stop-process –force
+    get-process qbw32 | foreach {$_.CloseMainWindow() | Out-Null} | stop-process –force
 }
-# Enable UAC
+# Re-enables UAC
 Set-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Value "5"
